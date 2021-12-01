@@ -1,0 +1,93 @@
+---
+title: "DS Final"
+author: "Declan Young"
+date: "12/1/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+library(rio)
+library(plyr)
+library(tidyverse)
+library(psych)
+library(pROC)
+library(ROCR)
+library(caret)
+library(C50) #Need this to pass into caret 
+library(mlbench)
+library(MLmetrics)
+
+music_genre <- read_csv("music_genre.csv")
+View(music_genre)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+# Removing identifier variables and mismanaged data columns (~50% of the duration variable indicated a song length of -1 ms)
+music_genre = music_genre[-c(1,2,3,7,9,16)]
+
+music_genre[music_genre == "?"] <- NA
+
+music_genre <- music_genre[complete.cases(music_genre), ]
+
+music_genre$tempo = as.numeric(music_genre$tempo)
+
+normalize = function(x){
+ (x - min(x)) / (max(x) - min(x))
+}
+
+music_genre[c(1,7,10)] = lapply(music_genre[c(1,7,10)], normalize)
+
+table(music_genre$key)
+
+music_genre$key = fct_collapse(music_genre$key,
+                               A = c("A", "A#"),
+                               B = c("B", "B#"),
+                               C = c("C", "C#"),
+                               D = c("D", "D#"),
+                               E = c("E", "E#"),
+                               F = c("F", "F#"),
+                               G = c("G", "G#")
+                               )
+
+table(music_genre$mode)
+
+table(music_genre$music_genre)
+
+music_genre$danceability = ifelse(music_genre$danceability>.75, 1, 0)
+
+part1_indexing = createDataPartition(music_genre$danceability,
+                                     times=1,
+                                     p = 0.70,
+                                     groups=1,
+                                     list=FALSE)
+
+train = music_genre[part1_indexing,]
+tune_and_test = music_genre[-part1_indexing, ]
+
+
+tune_and_test_index = createDataPartition(tune_and_test$danceability,
+                                           p = .5,
+                                           list = FALSE,
+                                           times = 1)
+
+tune = tune_and_test[tune_and_test_index, ]
+test = tune_and_test[-tune_and_test_index, ]
+```
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
