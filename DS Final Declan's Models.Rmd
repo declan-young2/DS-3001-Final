@@ -25,18 +25,108 @@ KNN_tune = tune[-c(3,5,12)]
 
 tune1h = one_hot(as.data.table(KNN_tune),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE) 
 
-Music_3NN = knn(train = train1h,
+Music_25NN = knn(train = train1h,
                 test = tune1h,
                 cl = train$danceability,
+                k = 25,
                 use.all = TRUE,
                 prob = TRUE)
+
+confusionMatrix(as.factor(Music_25NN), as.factor(tune$danceability), positive = "1", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+
+Music_100NN = knn(train = train1h,
+                test = tune1h,
+                cl = train$danceability,
+                k = 100,
+                use.all = TRUE,
+                prob = TRUE)
+
+confusionMatrix(as.factor(Music_100NN), as.factor(tune$danceability), positive = "1", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+
+Music_5NN = knn(train = train1h,
+                test = tune1h,
+                cl = train$danceability,
+                k = 5,
+                use.all = TRUE,
+                prob = TRUE)
+
+confusionMatrix(as.factor(Music_5NN), as.factor(tune$danceability), positive = "1", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+
+#Selecting the variables I predict would most closely correlate to danceability (popularity, energy, liveliness, loudness, and tempo)
+
+Music_25NN_tuned = knn(train = train[c(1,4,6,7,10)],
+                test = tune[c(1,4,6,7,10)],
+                cl = train$danceability,
+                k = 25,
+                use.all = TRUE,
+                prob = TRUE)
+
+confusionMatrix(as.factor(Music_25NN_tuned), as.factor(tune$danceability), positive = "1", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+
+#Worsened accuracy (especially sensitivity)
+
+Music_5NN_tuned = knn(train = train[c(1,4,6,7,10)],
+                test = tune[c(1,4,6,7,10)],
+                cl = train$danceability,
+                k = 5,
+                use.all = TRUE,
+                prob = TRUE)
+
+confusionMatrix(as.factor(Music_5NN_tuned), as.factor(tune$danceability), positive = "1", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+
+#Slightly increased sensitivity, but not enough and at the expense of accuracy
 
 ```
 
 ## Decision Tree
 
 ```{r pressure, echo=FALSE}
-plot(pressure)
+features = data.frame(train[-3])
+target = train$danceability
+
+#Adding f1 function
+f1 = function(data, lev = NULL, model = NULL) {
+  f1_val = F1_Score(y_pred = data$pred, y_true = data$obs, positive = lev[1])
+  c(F1 = f1_val)}
+  
+#Creating a cross validation process that maximizes the F-1 Score
+cv_train = trainControl(method = "repeatedcv",
+                        number = 10,
+                        repeats = 5,
+                        returnResamp = "all",
+                        classProbs = TRUE,
+                        allowParallel = TRUE,
+                        summaryFunction = f1)
+
+grid_control = expand.grid(.winnow = c(TRUE,FALSE), 
+                    .trials=c(1,5,10,15,20), 
+                    .model="tree")
+
+#Use this to get # of boosting iterations/winnowing through cross validation that prioritizes F-1 score (This is very computationally expensive)
+salary_mdl = train(x=features,
+                y=target,
+                method="C5.0",
+                tuneGrid=grid_control,
+                metric="F1",
+                trControl=cv_train)
+plot(salary_mdl)
+
+#Results: 20 Boosting iterations with no winnowing
+
+#Remaking the model for visualization purposes
+c5_model = C5.0(danceability~.,
+                    method = "class",
+                    parms = list(split = "gini"),
+                    data = train,
+                    trials = 20,
+                    control = C5.0Control(winnow = FALSE,
+                                          minCases = 500))
+
+varImp(c5_model)
+
+plot(c5_model)
+
+#First split is for genre; intuitively, this makes sense because of the booleans that follow. Rap and Hip hop will be most danceable when they are high energy/fast tempo while other genres may be more suited towards slow dancing that work best with low energy/slow tempo
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
