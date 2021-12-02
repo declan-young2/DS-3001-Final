@@ -70,7 +70,12 @@ music_genre$mode = as.factor(music_genre$mode)
 
 music_genre$music_genre = as.factor(music_genre$music_genre)
 
-music_genre$danceability = as.factor(ifelse(music_genre$danceability>.75, 1, 0))
+#Selecting the 75th percentile of danceable songs
+summary(music_genre$danceability)
+
+music_genre$danceability = as.factor(ifelse(music_genre$danceability>.6772, 1, 0))
+
+table(music_genre$danceability)
 
 set.seed(3001)
 
