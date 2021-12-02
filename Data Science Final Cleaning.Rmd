@@ -69,6 +69,8 @@ table(music_genre$music_genre)
 
 music_genre$danceability = ifelse(music_genre$danceability>.75, 1, 0)
 
+set.seed(3001)
+
 part1_indexing = createDataPartition(music_genre$danceability,
                                      times=1,
                                      p = 0.70,
