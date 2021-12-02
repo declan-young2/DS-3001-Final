@@ -26,9 +26,8 @@ library(caret)
 library(C50) #Need this to pass into caret 
 library(mlbench)
 library(MLmetrics)
+library(mltools)
 
-music_genre <- read_csv("music_genre.csv")
-View(music_genre)
 ```
 
 ## Including Plots
@@ -36,6 +35,10 @@ View(music_genre)
 You can also embed plots, for example:
 
 ```{r pressure, echo=FALSE}
+
+music_genre <- read_csv("music_genre.csv")
+View(music_genre)
+
 # Removing identifier variables and mismanaged data columns (~50% of the duration variable indicated a song length of -1 ms)
 music_genre = music_genre[-c(1,2,3,7,9,16)]
 
@@ -63,11 +66,11 @@ music_genre$key = fct_collapse(music_genre$key,
                                G = c("G", "G#")
                                )
 
-table(music_genre$mode)
+music_genre$mode = as.factor(music_genre$mode)
 
-table(music_genre$music_genre)
+music_genre$music_genre = as.factor(music_genre$music_genre)
 
-music_genre$danceability = ifelse(music_genre$danceability>.75, 1, 0)
+music_genre$danceability = as.factor(ifelse(music_genre$danceability>.75, 1, 0))
 
 set.seed(3001)
 

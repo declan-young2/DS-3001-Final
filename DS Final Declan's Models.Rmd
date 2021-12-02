@@ -1,0 +1,42 @@
+---
+title: "DS Final Declan's Models"
+author: "Declan Young"
+date: "12/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## KNN
+
+```{r cars}
+library(data.table)
+library(class)
+```
+
+```{r}
+KNN_train = train[-c(3,5,12)]
+
+train1h = one_hot(as.data.table(KNN_train),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE) 
+
+KNN_tune = tune[-c(3,5,12)]
+
+tune1h = one_hot(as.data.table(KNN_tune),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE) 
+
+Music_3NN = knn(train = train1h,
+                test = tune1h,
+                cl = train$danceability,
+                use.all = TRUE,
+                prob = TRUE)
+
+```
+
+## Decision Tree
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
