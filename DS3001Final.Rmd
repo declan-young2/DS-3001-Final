@@ -4,12 +4,21 @@ author: "Adam Kippenhan and Declan Young"
 date: "12/8/2021"
 output:
   html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
     code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALSE)
 ```
+
+# Introduction
+
+
+# Data Analysis
+
 
 ```{r libraries}
 # load required libraries
@@ -86,14 +95,424 @@ tune = tune_and_test[tune_and_test_index,]
 test = tune_and_test[-tune_and_test_index,]
 ```
 
+# Our Models
+
+## Tuning Models {.tabset}
+
+### KNN {.tabset}
+
+```{r cars}
+library(data.table)
+library(class)
+```
+
+#### 25 Neighbors
+
 ```{r}
-# KNN
+KNN_train = train[-c(3,5,12)]
+train1h = one_hot(as.data.table(KNN_train),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE) 
+KNN_tune = tune[-c(3,5,12)]
+tune1h = one_hot(as.data.table(KNN_tune),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE) 
+Music_25NN = knn(train = train1h,
+                test = tune1h,
+                cl = train$danceability,
+                k = 25,
+                use.all = TRUE,
+                prob = TRUE)
+confusionMatrix(as.factor(Music_25NN), as.factor(tune$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+#Selecting the variables I predict would most closely correlate to danceability (popularity, energy, liveliness, loudness, and tempo)
+Music_25NN_tuned = knn(train = train[c(1,4,6,7,10)],
+                test = tune[c(1,4,6,7,10)],
+                cl = train$danceability,
+                k = 25,
+                use.all = TRUE,
+                prob = TRUE)
+confusionMatrix(as.factor(Music_25NN_tuned), as.factor(tune$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+#Worsened accuracy (especially sensitivity)
+```
+
+#### 100 Neighbors
+
+```{r}
+#Sensitivity drops a lot for a small improvement in specificity (likely more-so due to the imbalanced nature of the data than it predicting the observations better)
+Music_100NN = knn(train = train1h,
+                test = tune1h,
+                cl = train$danceability,
+                k = 100,
+                use.all = TRUE,
+                prob = TRUE)
+confusionMatrix(as.factor(Music_100NN), as.factor(tune$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+Music_100NN_tuned = knn(train = train[c(1,4,6,7,10)],
+                test = tune[c(1,4,6,7,10)],
+                cl = train$danceability,
+                k = 25,
+                use.all = TRUE,
+                prob = TRUE)
+confusionMatrix(as.factor(Music_100NN_tuned), as.factor(tune$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+```
+
+#### 5 Neighbors
+
+```{r}
+Music_5NN = knn(train = train1h,
+                test = tune1h,
+                cl = train$danceability,
+                k = 5,
+                use.all = TRUE,
+                prob = TRUE)
+confusionMatrix(as.factor(Music_5NN), as.factor(tune$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+#Slightly increased sensitivity, but not enough and at the expense of accuracy
+Music_5NN_tuned = knn(train = train[c(1,4,6,7,10)],
+                test = tune[c(1,4,6,7,10)],
+                cl = train$danceability,
+                k = 5,
+                use.all = TRUE,
+                prob = TRUE)
+confusionMatrix(as.factor(Music_5NN_tuned), as.factor(tune$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+#Best model is likely the first model made (the increased in specificity were not worth the decreases in sensitivity) 
+```
+
+### Decision Tree
+
+```{r pressure, echo=FALSE}
+features = data.frame(train[-3])
+target = train$danceability
+  
+#Creating a cross validation process that maximizes the F-1 Score
+cv_train = trainControl(method = "repeatedcv",
+                        number = 10,
+                        repeats = 5,
+                        returnResamp = "all",
+                        classProbs = TRUE,
+                        allowParallel = TRUE,)
+grid_control = expand.grid(.winnow = c(TRUE,FALSE), 
+                    .trials=c(1,5,10,15,20), 
+                    .model="tree")
+#Use this to get # of boosting iterations/winnowing through cross validation that prioritizes F-1 score (This is very computationally expensive)
+dance_mdl = train(x=features,
+                y=target,
+                method="C5.0",
+                tuneGrid=grid_control,
+                trControl=cv_train)
+plot(dance_mdl)
+#Results: 20 Boosting iterations with no winnowing
+#Remaking the model for visualization purposes
+c5_model = C5.0(danceability~.,
+                    method = "class",
+                    parms = list(split = "gini"),
+                    data = train,
+                    trials = 20,
+                    control = C5.0Control(winnow = FALSE,
+                                          minCases = 500))
+varImp(c5_model)
+plot(c5_model)
+print(" The first split is for genre; intuitively, this makes sense because of the booleans that follow. Rap and Hip hop will be most danceable when they are high energy/fast tempo while other genres may be more suited towards slow dancing that work best with low energy/slow tempo")
+dance_prob = as_tibble(predict(c5_model, tune, type = "prob"))
+dance_pred = predict(c5_model, tune, type = "class")
+confusionMatrix(as.factor(dance_pred),
+                as.factor(tune$danceability),
+                dnn = c("Predicted", "Actual"),
+                mode = "sens_spec",
+                positive = "top25")
+#table = table(as.factor(dance_pred),
+#      as.factor(tune$danceability))
+#(spec = table[1]/(table[1]+table[2]))
+#F1 Score at .5 threshold
+pred_5 = as_factor(ifelse(dance_prob$top25 > 0.5, "top25", "bottom75"))
+print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5, y_true = as_factor(tune$danceability), positive = "top25")))
+```
+
+#### Tuning the Number of Cases
+
+```{r}
+empty = data.frame(min_cases = character(),
+                   F1 = numeric())
+min_cases = function(x){
+  c5_adj_model = C5.0(danceability~.,
+                    method = "class",
+                    parms = list(split = "gini"),
+                    data = train,
+                    trials = 20,
+                    control = C5.0Control(winnow = FALSE,
+                                          minCases = x,
+                                          ))
+  c5_adj_pred = as_tibble(predict(c5_adj_model, tune, type = "prob"))
+  c5_adj_class = as_factor(predict(c5_adj_model, tune))
+  pred_4_adj = as.factor(ifelse(c5_adj_pred$top25 > 0.5, "top25", "bottom75"))
+  pred_4_adj = relevel(pred_4_adj, "bottom75")
+  table = table(as.factor(c5_adj_class),
+      as.factor(tune$danceability))
+  spec = table[1]/(table[1]+table[2])
+  F_1 = data.frame(min_cases = x,F1 = F1_Score(y_pred = pred_4_adj, y_true = as_factor(tune$danceability), positive = "top25"), specificity = spec)
+  
+  empty <<- rbind(empty, F_1)
+}
+cases = c(2,5,10,50,100,250,500,1000,2500)
+lapply(cases, min_cases)
+ggplot(empty, aes(x = reorder(as.factor(min_cases), -F1), y = F1))+ geom_col(width = .8)+ geom_bar(data=subset(empty, F1==max(F1)), aes(as.factor(min_cases), F1),
+              fill="green", stat="identity")
+ggplot(empty, aes(x = reorder(as.factor(min_cases), -specificity), y = specificity))+ geom_col(width = .8)+ geom_bar(data=subset(empty, specificity==max(specificity)), aes(as.factor(min_cases), specificity),
+              fill="green", stat="identity")
+#50 seems to be the best compromise
+```
+
+#### Tuning the Confidence Factor
+
+```{r}
+empty2 = data.frame(CF_level = character(),
+                   F1 = numeric())
+CF_level = function(x){
+  c5_adj_model = C5.0(danceability~.,
+                    method = "class",
+                    parms = list(split = "gini"),
+                    data = train,
+                    trials = 20,
+                    control = C5.0Control(winnow = FALSE,
+                                          minCases = 50,
+                                          CF = x
+                                          ))
+  c5_adj_pred = as_tibble(predict(c5_adj_model, tune, type = "prob"))
+  c5_adj_class = as_factor(predict(c5_adj_model, tune))
+  pred_4_adj = as.factor(ifelse(c5_adj_pred$top25 > 0.5, "top25", "bottom75"))
+  pred_4_adj = relevel(pred_4_adj, "bottom75")
+  table = table(as.factor(c5_adj_class),
+      as.factor(tune$danceability))
+  spec = table[1]/(table[1]+table[2])
+  F_1 = data.frame(CF_level = x,F1 = F1_Score(y_pred = pred_4_adj, y_true = as_factor(tune$danceability), positive = "top25"), specificity = spec)
+  
+  empty2 <<- rbind(empty2, F_1)
+}
+cases = c(.1,.2,.3,.4,.5,.6,.7,.8,.9)
+lapply(cases, CF_level)
+ggplot(empty2, aes(x = reorder(as.factor(CF_level), -F1), y = F1))+ geom_col(width = .8)+ geom_bar(data=subset(empty2, F1==max(F1)), aes(as.factor(CF_level), F1),
+              fill="green", stat="identity")
+ggplot(empty2, aes(x = reorder(as.factor(CF_level), -specificity), y = specificity))+ geom_col(width = .8)+ geom_bar(data=subset(empty2, specificity==max(specificity)), aes(as.factor(CF_level), specificity),
+              fill="green", stat="identity")
+c5_model_tune = C5.0(danceability~.,
+                    method = "class",
+                    parms = list(split = "gini"),
+                    data = train,
+                    trials = 20,
+                    control = C5.0Control(winnow = FALSE,
+                                          minCases = 50,
+                                          CF = .6))
+dance_prob_tune = as_tibble(predict(c5_model_tune, tune, type = "prob"))
+dance_pred_tune = predict(c5_model_tune, tune, type = "class")
+confusionMatrix(as.factor(dance_pred_tune),
+                as.factor(tune$danceability),
+                dnn = c("Predicted", "Actual"),
+                mode = "sens_spec",
+                positive = "top25")
+#F1 Score at .5 threshold
+pred_5_tune = as_factor(ifelse(dance_prob_tune$top25 > 0.5, "top25", "bottom75"))
+print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_tune, y_true = as_factor(tune$danceability), positive = "top25")))
+#Best model so far, should do roc curve to find threshold
+dance_prob_tune = as_tibble(dance_prob_tune)
+dance_eval_tune = tibble(pred_class=dance_pred_tune, pred_prob=dance_prob_tune$top25,target=as.numeric(tune$danceability))
+pred = prediction(dance_eval_tune$pred_prob, dance_eval_tune$target)
+#Choosing to evaluate the true positive rate and false positive rate based on the threshold
+ROC_curve = performance(pred,"tpr","fpr")
+plot(ROC_curve, colorize=TRUE)
+abline(a=0, b= 1)
+tree_perf_AUC = performance(pred,"auc")
+print(paste("AUC =",tree_perf_AUC@y.values))
+#.5 is near the elbow of the graph (maybe could try .4 and .6)
+print("Thresholding at .4")
+dance_pred_4 = as_factor(ifelse(dance_prob$top25 > 0.4, "top25", "bottom75"))
+confusionMatrix(as.factor(dance_pred_4),
+                as.factor(tune$danceability),
+                dnn = c("Predicted", "Actual"),
+                mode = "sens_spec",
+                positive = "top25")
+print("Increases in sensitivity are not worth the decreases in specificity because it is our metric of interest.")
+print("Thresholding at .6")
+dance_pred_6 = as_factor(ifelse(dance_prob$top25 > 0.6, "top25", "bottom75"))
+confusionMatrix(as.factor(dance_pred_6),
+                as.factor(tune$danceability),
+                dnn = c("Predicted", "Actual"),
+                mode = "sens_spec",
+                positive = "top25")
+print("The improvements in specificity are not worth the great losses in sensitivity.")
+```
+
+### Random Forest
+
+```{r, results=FALSE}
+# function to calculate the mtry level 
+mytry_tune <- function(x){
+  xx <- dim(x)[2]-1
+  sqrt(xx)
+}
+
+set.seed(3001)
+rfInit = randomForest(danceability~.,      #<- Formula: response variable ~ predictors.
+                      #   The period means 'use all other variables in the data'.
+                      train,               #<- A data frame with the variables to be used.
+                      #y = NULL,           #<- A response vector. This is unnecessary because we're specifying a response formula.
+                      #subset = NULL,      #<- This is unnecessary because we're using all the rows in the training data set.
+                      #xtest = NULL,       #<- This is already defined in the formula by the ".".
+                      #ytest = NULL,       #<- This is already defined in the formula by "PREGNANT".
+                      ntree = 500,        #<- Number of trees to grow. This should not be set to too small a number, to ensure that every input row gets classified at least a few times.
+                      mtry = mytry_tune(music_genre), #<- Number of variables randomly sampled as candidates at each split. Default number for classification is sqrt(# of variables). Default number for regression is (# of variables / 3).
+                      replace = TRUE,      #<- Should sampled data points be replaced.
+                      #classwt = NULL,     #<- Priors of the classes. Use this if you want to specify what proportion of the data SHOULD be in each class. This is relevant if your sample data is not completely representative of the actual population 
+                      #strata = NULL,      #<- Not necessary for our purpose here.
+                      sampsize = 3000,      #<- Size of sample to draw each time.
+                      nodesize = 5,        #<- Minimum numbers of data points in terminal nodes.
+                      #maxnodes = NULL,    #<- Limits the number of maximum splits. 
+                      importance = TRUE,   #<- Should importance of predictors be assessed?
+                      #localImp = FALSE,   #<- Should casewise importance measure be computed? (Setting this to TRUE will override importance.)
+                      proximity = FALSE,    #<- Should a proximity measure between rows be calculated?
+                      norm.votes = TRUE,   #<- If TRUE (default), the final result of votes are expressed as fractions. If FALSE, raw vote counts are returned (useful for combining results from different runs).
+                      do.trace = TRUE,     #<- If set to TRUE, give a more verbose output as randomForest is run.
+                      keep.forest = TRUE,  #<- If set to FALSE, the forest will not be retained in the output object. If xtest is given, defaults to FALSE.
+                      keep.inbag = TRUE)   #<- Should an n by ntree matrix be returned that keeps track of which samples are in-bag in which trees?
+
+showModelOutput <- function(mdl, modelName) {
+  print('Variable Importance')
+  print(mdl$importance)
+  varImpPlot(mdl, main=modelName)
+  plot(mdl, main=modelName)
+  mdlPredict = predict(mdl,
+                       tune,
+                       type = "response",
+                       predict.all = FALSE,
+                       proximity = FALSE)
+  
+  confusionMatrix(as.factor(mdlPredict),
+                  as.factor(tune$danceability),
+                  dnn = c("Predicted", "Actual"),
+                  mode = "sens_spec",
+                  positive = "top25")
+}
 ```
 
 ```{r}
-# Decision Tree
+showModelOutput(rfInit, 'Initial Model')
 ```
 
+```{r, results=FALSE}
+# function to run the model with a given number of trees and randomly sampled variables
+tuneModel <- function(numTrees, mTry) {
+  set.seed(3001)	
+  rf = randomForest(danceability~.,      #<- Formula: response variable ~ predictors.
+                    #   The period means 'use all other variables in the data'.
+                    tune,                #<- A data frame with the variables to be used.
+                    #y = NULL,           #<- A response vector. This is unnecessary because we're specifying a response formula.
+                    #subset = NULL,      #<- This is unnecessary because we're using all the rows in the training data set.
+                    #xtest = NULL,       #<- This is already defined in the formula by the ".".
+                    #ytest = NULL,       #<- This is already defined in the formula by "PREGNANT".
+                    ntree = numTrees,        #<- Number of trees to grow. This should not be set to too small a number, to ensure that every input row gets classified at least a few times.
+                    mtry = mTry,            #<- Number of variables randomly sampled as candidates at each split. Default number for classification is sqrt(# of variables). Default number for regression is (# of variables / 3).
+                    replace = TRUE,      #<- Should sampled data points be replaced.
+                    #classwt = NULL,     #<- Priors of the classes. Use this if you want to specify what proportion of the data SHOULD be in each class. This is relevant if your sample data is not completely representative of the actual population 
+                    #strata = NULL,      #<- Not necessary for our purpose here.
+                    sampsize = 3000,      #<- Size of sample to draw each time.
+                    nodesize = 5,        #<- Minimum numbers of data points in terminal nodes.
+                    #maxnodes = NULL,    #<- Limits the number of maximum splits. 
+                    importance = TRUE,   #<- Should importance of predictors be assessed?
+                    #localImp = FALSE,   #<- Should casewise importance measure be computed? (Setting this to TRUE will override importance.)
+                    proximity = FALSE,    #<- Should a proximity measure between rows be calculated?
+                    norm.votes = TRUE,   #<- If TRUE (default), the final result of votes are expressed as fractions. If FALSE, raw vote counts are returned (useful for combining results from different runs).
+                    do.trace = TRUE,     #<- If set to TRUE, give a more verbose output as randomForest is run.
+                    keep.forest = TRUE,  #<- If set to FALSE, the forest will not be retained in the output object. If xtest is given, defaults to FALSE.
+                    keep.inbag = TRUE)   #<- Should an n by ntree matrix be returned that keeps track of which samples are in-bag in which trees?
+  return(rf)
+}
+rf1 = tuneModel(250, 3)
+rf2 = tuneModel(750, 3)
+rf3 = tuneModel(1000, 3)
+rf4 = tuneModel(250, 4)
+rf5 = tuneModel(500, 4)
+rf6 = tuneModel(750, 4)
+rf7 = tuneModel(1000, 4)
+```
+
+#### 250 Trees with 3 Randomly Sampled Variables
 ```{r}
-# Random Forest
+showModelOutput(rf1, '250 Trees with 3 mtry')
+```
+
+#### 750 Trees with 3 Randomly Sampled Variables
+```{r}
+showModelOutput(rf2, '750 Trees with 3 mtry')
+```
+
+#### 1000 Trees with 3 Randomly Sampled Variables
+```{r}
+showModelOutput(rf3, '1000 Trees with 3 mtry')
+```
+
+#### 250 Trees with 4 Randomly Sampled Variables
+```{r}
+showModelOutput(rf4, '250 Trees with 4 mtry')
+```
+
+#### 500 Trees with 4 Randomly Sampled Variables
+```{r}
+showModelOutput(rf5, '500 Trees with 4 mtry')
+```
+
+#### 750 Trees with 4 Randomly Sampled Variables
+```{r}
+showModelOutput(rf6, '750 Trees with 4 mtry')
+```
+
+#### 1000 Trees with 4 Randomly Sampled Variables
+```{r}
+showModelOutput(rf7, '1000 Trees with 4 mtry')
+```
+
+## Testing our Final Models {.tabset}
+
+### KNN
+
+```{r}
+KNN_test = test[-c(3,5,12)]
+test1h = one_hot(as.data.table(KNN_test),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE) 
+Music_25NN_Final = knn(train = train1h,
+                test = test1h,
+                cl = train$danceability,
+                k = 25,
+                use.all = TRUE,
+                prob = TRUE)
+confusionMatrix(as.factor(Music_25NN_Final), as.factor(test$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+#Establishing dataframe with both the prediction and probability
+Music_25NN_Final_Prob = data.frame(pred = as_factor(Music_25NN_Final), prob = attr(Music_25NN_Final, "prob"))
+#Adjusting so probability aligns with probability of "top25" for all observations
+Music_25NN_Final_Prob$prob = ifelse(Music_25NN_Final_Prob$pred == "bottom75", 1 - Music_25NN_Final_Prob$prob, Music_25NN_Final_Prob$prob)
+#Finding F1 score at .5 threshold
+pred_5_KNN = as_factor(ifelse(Music_25NN_Final_Prob$prob > 0.5, "top25", "bottom75"))
+print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_KNN, y_true = as_factor(test$danceability), positive = "top25")))
+```
+
+### Decision Tree
+
+```{r}
+dance_prob_test = as_tibble(predict(c5_model_tune, test, type = "prob"))
+dance_pred_test = predict(c5_model_tune, test, type = "class")
+confusionMatrix(as.factor(dance_pred_test),
+                as.factor(test$danceability),
+                dnn = c("Predicted", "Actual"),
+                mode = "sens_spec",
+                positive = "top25")
+#F1 Score at .5 threshold
+pred_5_test = as_factor(ifelse(dance_prob_test$top25 > 0.5, "top25", "bottom75"))
+print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_test, y_true = as_factor(test$danceability), positive = "top25")))
+```
+
+### Random Forest
+
+```{r}
+rfPredict = predict(rf7,
+                    test,
+                    type = "response",
+                    predict.all = FALSE,
+                    proximity = FALSE)
+
+confusionMatrix(as.factor(rfPredict),
+                as.factor(test$danceability),
+                dnn = c("Predicted", "Actual"),
+                mode = "sens_spec",
+                positive = "top25")
 ```
