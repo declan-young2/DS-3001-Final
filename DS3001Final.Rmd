@@ -7,6 +7,7 @@ output:
     toc: true
     toc_depth: 2
     toc_float: true
+    theme: journal
     code_folding: hide
 ---
 
@@ -24,9 +25,12 @@ knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALS
 # load required libraries
 library(C50)
 library(caret)
+library(class)
+library(data.table)
 library(MLmetrics)
 library(mlbench)
 library(mltools)
+library(ROCR)
 library(randomForest)
 library(tidyverse)
 ```
@@ -95,24 +99,17 @@ tune = tune_and_test[tune_and_test_index,]
 test = tune_and_test[-tune_and_test_index,]
 ```
 
-# Our Models
+# Our Models {.tabset}
 
-## Tuning Models {.tabset}
+## KNN {.tabset}
 
-### KNN {.tabset}
-
-```{r cars}
-library(data.table)
-library(class)
-```
-
-#### 25 Neighbors
+### 25 Neighbors
 
 ```{r}
 KNN_train = train[-c(3,5,12)]
-train1h = one_hot(as.data.table(KNN_train),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE) 
+train1h = one_hot(as.data.table(KNN_train),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE)
 KNN_tune = tune[-c(3,5,12)]
-tune1h = one_hot(as.data.table(KNN_tune),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE) 
+tune1h = one_hot(as.data.table(KNN_tune),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE)
 Music_25NN = knn(train = train1h,
                 test = tune1h,
                 cl = train$danceability,
@@ -131,7 +128,7 @@ confusionMatrix(as.factor(Music_25NN_tuned), as.factor(tune$danceability), posit
 #Worsened accuracy (especially sensitivity)
 ```
 
-#### 100 Neighbors
+### 100 Neighbors
 
 ```{r}
 #Sensitivity drops a lot for a small improvement in specificity (likely more-so due to the imbalanced nature of the data than it predicting the observations better)
@@ -151,7 +148,7 @@ Music_100NN_tuned = knn(train = train[c(1,4,6,7,10)],
 confusionMatrix(as.factor(Music_100NN_tuned), as.factor(tune$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
 ```
 
-#### 5 Neighbors
+### 5 Neighbors
 
 ```{r}
 Music_5NN = knn(train = train1h,
@@ -172,7 +169,7 @@ confusionMatrix(as.factor(Music_5NN_tuned), as.factor(tune$danceability), positi
 #Best model is likely the first model made (the increased in specificity were not worth the decreases in sensitivity) 
 ```
 
-### Decision Tree
+## Decision Tree {.tabset}
 
 ```{r pressure, echo=FALSE}
 features = data.frame(train[-3])
@@ -222,7 +219,7 @@ pred_5 = as_factor(ifelse(dance_prob$top25 > 0.5, "top25", "bottom75"))
 print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5, y_true = as_factor(tune$danceability), positive = "top25")))
 ```
 
-#### Tuning the Number of Cases
+### Tuning the Number of Cases
 
 ```{r}
 empty = data.frame(min_cases = character(),
@@ -256,7 +253,7 @@ ggplot(empty, aes(x = reorder(as.factor(min_cases), -specificity), y = specifici
 #50 seems to be the best compromise
 ```
 
-#### Tuning the Confidence Factor
+### Tuning the Confidence Factor
 
 ```{r}
 empty2 = data.frame(CF_level = character(),
@@ -335,7 +332,7 @@ confusionMatrix(as.factor(dance_pred_6),
 print("The improvements in specificity are not worth the great losses in sensitivity.")
 ```
 
-### Random Forest
+## Random Forest {.tabset}
 
 ```{r, results=FALSE}
 # function to calculate the mtry level 
@@ -369,6 +366,8 @@ rfInit = randomForest(danceability~.,      #<- Formula: response variable ~ pred
                       keep.inbag = TRUE)   #<- Should an n by ntree matrix be returned that keeps track of which samples are in-bag in which trees?
 
 showModelOutput <- function(mdl, modelName) {
+  print("Call")
+  print(mdl$call)
   print('Variable Importance')
   print(mdl$importance)
   varImpPlot(mdl, main=modelName)
@@ -385,13 +384,7 @@ showModelOutput <- function(mdl, modelName) {
                   mode = "sens_spec",
                   positive = "top25")
 }
-```
 
-```{r}
-showModelOutput(rfInit, 'Initial Model')
-```
-
-```{r, results=FALSE}
 # function to run the model with a given number of trees and randomly sampled variables
 tuneModel <- function(numTrees, mTry) {
   set.seed(3001)	
@@ -428,44 +421,49 @@ rf6 = tuneModel(750, 4)
 rf7 = tuneModel(1000, 4)
 ```
 
-#### 250 Trees with 3 Randomly Sampled Variables
+### Initial Model
+```{r}
+showModelOutput(rfInit, 'Initial Model')
+```
+
+### 250 Trees with 3 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf1, '250 Trees with 3 mtry')
 ```
 
-#### 750 Trees with 3 Randomly Sampled Variables
+### 750 Trees with 3 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf2, '750 Trees with 3 mtry')
 ```
 
-#### 1000 Trees with 3 Randomly Sampled Variables
+### 1000 Trees with 3 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf3, '1000 Trees with 3 mtry')
 ```
 
-#### 250 Trees with 4 Randomly Sampled Variables
+### 250 Trees with 4 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf4, '250 Trees with 4 mtry')
 ```
 
-#### 500 Trees with 4 Randomly Sampled Variables
+### 500 Trees with 4 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf5, '500 Trees with 4 mtry')
 ```
 
-#### 750 Trees with 4 Randomly Sampled Variables
+### 750 Trees with 4 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf6, '750 Trees with 4 mtry')
 ```
 
-#### 1000 Trees with 4 Randomly Sampled Variables
+### 1000 Trees with 4 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf7, '1000 Trees with 4 mtry')
 ```
 
-## Testing our Final Models {.tabset}
+# Testing our Final Models {.tabset}
 
-### KNN
+## KNN
 
 ```{r}
 KNN_test = test[-c(3,5,12)]
@@ -486,7 +484,7 @@ pred_5_KNN = as_factor(ifelse(Music_25NN_Final_Prob$prob > 0.5, "top25", "bottom
 print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_KNN, y_true = as_factor(test$danceability), positive = "top25")))
 ```
 
-### Decision Tree
+## Decision Tree
 
 ```{r}
 dance_prob_test = as_tibble(predict(c5_model_tune, test, type = "prob"))
@@ -501,7 +499,7 @@ pred_5_test = as_factor(ifelse(dance_prob_test$top25 > 0.5, "top25", "bottom75")
 print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_test, y_true = as_factor(test$danceability), positive = "top25")))
 ```
 
-### Random Forest
+## Random Forest
 
 ```{r}
 rfPredict = predict(rf7,
