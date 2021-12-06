@@ -1,0 +1,99 @@
+---
+title: "Predicting Music Danceability"
+author: "Adam Kippenhan and Declan Young"
+date: "12/8/2021"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r libraries}
+# load required libraries
+library(C50)
+library(caret)
+library(MLmetrics)
+library(mlbench)
+library(mltools)
+library(randomForest)
+library(tidyverse)
+```
+
+```{r dataCleaning, echo=FALSE}
+music_genre_data <- read_csv("music_genre.csv")
+
+# Removing identifier variables and mismanaged data columns (~50% of the duration variable indicated a song length of -1 ms)
+music_genre = music_genre_data[-c(1,2,3,7,9,16)]
+
+music_genre[music_genre == "?"] <- NA # convert '?' to NA
+
+music_genre <- music_genre[complete.cases(music_genre),] # remove NAs
+
+music_genre$tempo = as.numeric(music_genre$tempo)
+
+normalize = function(x){
+ (x - min(x)) / (max(x) - min(x))
+}
+
+# normalize popularity, loudness and valence columns
+music_genre[c(1,7,10)] = lapply(music_genre[c(1,7,10)], normalize)
+
+# collapse factors of key column to group sharps and naturals
+music_genre$key = fct_collapse(music_genre$key, 
+                               A = c("A", "A#"),
+                               B = c("B", "B#"),
+                               C = c("C", "C#"),
+                               D = c("D", "D#"),
+                               E = c("E", "E#"),
+                               F = c("F", "F#"),
+                               G = c("G", "G#"))
+
+# change "Hip-Hop" value in genre column to a usable R name
+music_genre[music_genre == "Hip-Hop"] <- "HipHop"
+
+# rename genre column from "music_genre" to "genre"
+names(music_genre)[names(music_genre)=="music_genre"] = "genre" 
+
+# change mode and music_genre columns to factor
+music_genre$mode = as.factor(music_genre$mode) 
+music_genre$genre = as.factor(music_genre$genre)
+
+# find the 75th percentile of danceable songs
+danceabilitySummary <- summary(music_genre$danceability)
+
+music_genre$danceability = (ifelse(music_genre$danceability > danceabilitySummary[5], 1, 0))
+music_genre$danceability = fct_collapse(as.factor(music_genre$danceability), "bottom75" = "0", "top25" = "1")
+
+# split up data into train, tune and test
+part1_indexing = createDataPartition(music_genre$danceability,
+                                     times = 1,
+                                     p = 0.70,
+                                     groups=1,
+                                     list=FALSE)
+
+train = music_genre[part1_indexing,]
+tune_and_test = music_genre[-part1_indexing,]
+
+tune_and_test_index = createDataPartition(tune_and_test$danceability,
+                                          p = .5,
+                                          list = FALSE,
+                                          times = 1)
+
+tune = tune_and_test[tune_and_test_index,]
+test = tune_and_test[-tune_and_test_index,]
+```
+
+```{r}
+# KNN
+```
+
+```{r}
+# Decision Tree
+```
+
+```{r}
+# Random Forest
+```

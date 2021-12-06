@@ -1,0 +1,226 @@
+---
+title: "Adam's Random Forest Model"
+author: "Adam Kippenhan"
+date: "12/5/2021"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r libraries}
+# load required libraries
+library(caret)
+library(randomForest)
+library(tidyverse)
+```
+
+```{r dataCleaning, echo=FALSE}
+music_genre_data <- read_csv("music_genre.csv")
+
+# Removing identifier variables and mismanaged data columns (~50% of the duration variable indicated a song length of -1 ms)
+music_genre = music_genre_data[-c(1,2,3,7,9,16)]
+
+music_genre[music_genre == "?"] <- NA # convert '?' to NA
+
+music_genre <- music_genre[complete.cases(music_genre),] # remove NAs
+
+music_genre$tempo = as.numeric(music_genre$tempo)
+
+normalize = function(x){
+ (x - min(x)) / (max(x) - min(x))
+}
+
+music_genre[c(1,7,10)] = lapply(music_genre[c(1,7,10)], normalize) # normalize popularity, loudness and valence columns
+
+music_genre$key = fct_collapse(music_genre$key, # collapse factors of key column to group sharps and naturals
+                               A = c("A", "A#"),
+                               B = c("B", "B#"),
+                               C = c("C", "C#"),
+                               D = c("D", "D#"),
+                               E = c("E", "E#"),
+                               F = c("F", "F#"),
+                               G = c("G", "G#"))
+
+# change "Hip-Hop" value in genre column to a usable R name
+music_genre[music_genre == "Hip-Hop"] <- "HipHop"
+
+# rename genre column from "music_genre" to "genre"
+names(music_genre)[names(music_genre)=="music_genre"] = "genre" 
+
+# change mode and music_genre columns to factor
+music_genre$mode = as.factor(music_genre$mode) 
+music_genre$genre = as.factor(music_genre$genre)
+
+
+# find the 75th percentile of danceable songs
+danceabilitySummary <- summary(music_genre$danceability)
+
+music_genre$danceability = (ifelse(music_genre$danceability > danceabilitySummary[5], 1, 0))
+music_genre$danceability = fct_collapse(as.factor(music_genre$danceability), "bottom75" = "0", "top25" = "1")
+
+# split up data into train, tune, test
+part1_indexing = createDataPartition(music_genre$danceability,
+                                     times = 1,
+                                     p = 0.70,
+                                     groups=1,
+                                     list=FALSE)
+
+train = music_genre[part1_indexing,]
+tune_and_test = music_genre[-part1_indexing,]
+
+tune_and_test_index = createDataPartition(tune_and_test$danceability,
+                                          p = .5,
+                                          list = FALSE,
+                                          times = 1)
+
+tune = tune_and_test[tune_and_test_index,]
+test = tune_and_test[-tune_and_test_index,]
+```
+
+```{r}
+# function to calculate the mtry level 
+mytry_tune <- function(x){
+  xx <- dim(x)[2]-1
+  sqrt(xx)
+}
+mytry_tune(music_genre)
+```
+
+```{r, results=FALSE}
+set.seed(3001)
+rfInit = randomForest(danceability~.,      #<- Formula: response variable ~ predictors.
+                      #   The period means 'use all other variables in the data'.
+                      train,               #<- A data frame with the variables to be used.
+                      #y = NULL,           #<- A response vector. This is unnecessary because we're specifying a response formula.
+                      #subset = NULL,      #<- This is unnecessary because we're using all the rows in the training data set.
+                      #xtest = NULL,       #<- This is already defined in the formula by the ".".
+                      #ytest = NULL,       #<- This is already defined in the formula by "PREGNANT".
+                      ntree = 500,        #<- Number of trees to grow. This should not be set to too small a number, to ensure that every input row gets classified at least a few times.
+                      mtry = 3,            #<- Number of variables randomly sampled as candidates at each split. Default number for classification is sqrt(# of variables). Default number for regression is (# of variables / 3).
+                      replace = TRUE,      #<- Should sampled data points be replaced.
+                      #classwt = NULL,     #<- Priors of the classes. Use this if you want to specify what proportion of the data SHOULD be in each class. This is relevant if your sample data is not completely representative of the actual population 
+                      #strata = NULL,      #<- Not necessary for our purpose here.
+                      sampsize = 3000,      #<- Size of sample to draw each time.
+                      nodesize = 5,        #<- Minimum numbers of data points in terminal nodes.
+                      #maxnodes = NULL,    #<- Limits the number of maximum splits. 
+                      importance = TRUE,   #<- Should importance of predictors be assessed?
+                      #localImp = FALSE,   #<- Should casewise importance measure be computed? (Setting this to TRUE will override importance.)
+                      proximity = FALSE,    #<- Should a proximity measure between rows be calculated?
+                      norm.votes = TRUE,   #<- If TRUE (default), the final result of votes are expressed as fractions. If FALSE, raw vote counts are returned (useful for combining results from different runs).
+                      do.trace = TRUE,     #<- If set to TRUE, give a more verbose output as randomForest is run.
+                      keep.forest = TRUE,  #<- If set to FALSE, the forest will not be retained in the output object. If xtest is given, defaults to FALSE.
+                      keep.inbag = TRUE)   #<- Should an n by ntree matrix be returned that keeps track of which samples are in-bag in which trees?
+```
+
+```{r}
+# initial model output
+rfInit
+
+plot(rfInit)
+varImp(rfInit)
+varImpPlot(rfInit)
+```
+
+```{r, results=FALSE}
+# function to run the model with a given number of trees and randomly sampled variables
+tuneModel <- function(numTrees, mTry) {
+  set.seed(3001)	
+  rf = randomForest(danceability~.,      #<- Formula: response variable ~ predictors.
+                    #   The period means 'use all other variables in the data'.
+                    tune,                #<- A data frame with the variables to be used.
+                    #y = NULL,           #<- A response vector. This is unnecessary because we're specifying a response formula.
+                    #subset = NULL,      #<- This is unnecessary because we're using all the rows in the training data set.
+                    #xtest = NULL,       #<- This is already defined in the formula by the ".".
+                    #ytest = NULL,       #<- This is already defined in the formula by "PREGNANT".
+                    ntree = numTrees,        #<- Number of trees to grow. This should not be set to too small a number, to ensure that every input row gets classified at least a few times.
+                    mtry = mTry,            #<- Number of variables randomly sampled as candidates at each split. Default number for classification is sqrt(# of variables). Default number for regression is (# of variables / 3).
+                    replace = TRUE,      #<- Should sampled data points be replaced.
+                    #classwt = NULL,     #<- Priors of the classes. Use this if you want to specify what proportion of the data SHOULD be in each class. This is relevant if your sample data is not completely representative of the actual population 
+                    #strata = NULL,      #<- Not necessary for our purpose here.
+                    sampsize = 3000,      #<- Size of sample to draw each time.
+                    nodesize = 5,        #<- Minimum numbers of data points in terminal nodes.
+                    #maxnodes = NULL,    #<- Limits the number of maximum splits. 
+                    importance = TRUE,   #<- Should importance of predictors be assessed?
+                    #localImp = FALSE,   #<- Should casewise importance measure be computed? (Setting this to TRUE will override importance.)
+                    proximity = FALSE,    #<- Should a proximity measure between rows be calculated?
+                    norm.votes = TRUE,   #<- If TRUE (default), the final result of votes are expressed as fractions. If FALSE, raw vote counts are returned (useful for combining results from different runs).
+                    do.trace = TRUE,     #<- If set to TRUE, give a more verbose output as randomForest is run.
+                    keep.forest = TRUE,  #<- If set to FALSE, the forest will not be retained in the output object. If xtest is given, defaults to FALSE.
+                    keep.inbag = TRUE)   #<- Should an n by ntree matrix be returned that keeps track of which samples are in-bag in which trees?
+  return(rf)
+}
+rf1 = tuneModel(250, 3)
+rf2 = tuneModel(750, 3)
+rf3 = tuneModel(1000, 3)
+rf4 = tuneModel(250, 4)
+rf5 = tuneModel(500, 4)
+rf6 = tuneModel(750, 4)
+rf7 = tuneModel(1000, 4)
+```
+
+250 Trees with 3 Randomly Sampled Variables
+```{r}
+rf1
+
+plot(rf1)
+varImp(rf1)
+varImpPlot(rf1)
+```
+
+750 Trees with 3 Randomly Sampled Variables
+```{r}
+rf2
+
+plot(rf2)
+varImp(rf2)
+varImpPlot(rf2)
+```
+
+1000 Trees with 3 Randomly Sampled Variables
+```{r}
+rf3
+
+plot(rf3)
+varImp(rf3)
+varImpPlot(rf3)
+```
+
+250 Trees with 4 Randomly Sampled Variables
+```{r}
+rf4
+
+plot(rf4)
+varImp(rf4)
+varImpPlot(rf4)
+```
+
+500 Trees with 4 Randomly Sampled Variables
+```{r}
+rf5
+
+plot(rf5)
+varImp(rf5)
+varImpPlot(rf5)
+```
+
+750 Trees with 4 Randomly Sampled Variables
+```{r}
+rf6
+
+plot(rf6)
+varImp(rf6)
+varImpPlot(rf6)
+```
+
+1000 Trees with 4 Randomly Sampled Variables
+```{r}
+rf7
+
+plot(rf7)
+varImp(rf7)
+varImpPlot(rf7)
+```
