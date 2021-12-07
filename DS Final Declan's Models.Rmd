@@ -131,7 +131,9 @@ dance_mdl = train(x=features,
                 method="C5.0",
                 tuneGrid=grid_control,
                 trControl=cv_train)
-plot(dance_mdl)
+
+save(plot(dance_mdl),file = "boosts.png")
+save.image(file = )
 
 #Results: 20 Boosting iterations with no winnowing
 
@@ -145,7 +147,9 @@ c5_model = C5.0(danceability~.,
                                           minCases = 500))
 
 varImp(c5_model)
+```
 
+```{r, fig.height=5, fig.width=10}
 plot(c5_model)
 
 print(" The first split is for genre; intuitively, this makes sense because of the booleans that follow. Rap and Hip hop will be most danceable when they are high energy/fast tempo while other genres may be more suited towards slow dancing that work best with low energy/slow tempo")

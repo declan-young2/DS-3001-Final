@@ -74,13 +74,21 @@ names(music_genre)[names(music_genre)=="music_genre"] = "genre"
 music_genre$mode = as.factor(music_genre$mode) 
 music_genre$genre = as.factor(music_genre$genre)
 
+print("Boxplot:")
+
 # find the 75th percentile of danceable songs
+boxplot(music_genre$danceability)
+
 danceabilitySummary <- summary(music_genre$danceability)
+danceabilitySummary
+
+print("The 75th percentile of danceability includes values of .687 and above")
 
 music_genre$danceability = (ifelse(music_genre$danceability > danceabilitySummary[5], 1, 0))
 music_genre$danceability = fct_collapse(as.factor(music_genre$danceability), "bottom75" = "0", "top25" = "1")
 
 # split up data into train, tune and test
+set.seed(3001)
 part1_indexing = createDataPartition(music_genre$danceability,
                                      times = 1,
                                      p = 0.70,
@@ -169,9 +177,10 @@ confusionMatrix(as.factor(Music_5NN_tuned), as.factor(tune$danceability), positi
 #Best model is likely the first model made (the increased in specificity were not worth the decreases in sensitivity) 
 ```
 
-## Decision Tree {.tabset}
+## Decision Tree 
 
 ```{r pressure, echo=FALSE}
+# This chunk is only used to learn the ideal winnowing/boosting methods, but it is computationally expensive, so it is not necessary to run after the first time
 features = data.frame(train[-3])
 target = train$danceability
   
@@ -194,6 +203,10 @@ dance_mdl = train(x=features,
 plot(dance_mdl)
 #Results: 20 Boosting iterations with no winnowing
 #Remaking the model for visualization purposes
+```
+
+```{r, fig.height=5, fig.width=10}
+
 c5_model = C5.0(danceability~.,
                     method = "class",
                     parms = list(split = "gini"),
@@ -201,9 +214,11 @@ c5_model = C5.0(danceability~.,
                     trials = 20,
                     control = C5.0Control(winnow = FALSE,
                                           minCases = 500))
+
 varImp(c5_model)
 plot(c5_model)
-print(" The first split is for genre; intuitively, this makes sense because of the booleans that follow. Rap and Hip hop will be most danceable when they are high energy/fast tempo while other genres may be more suited towards slow dancing that work best with low energy/slow tempo")
+
+print("The first split is for genre; intuitively, this makes sense because of the booleans that follow. Rap and Hip hop will be most danceable when they are high energy/fast tempo while other genres may be more suited towards slow dancing that work best with low energy/slow tempo")
 dance_prob = as_tibble(predict(c5_model, tune, type = "prob"))
 dance_pred = predict(c5_model, tune, type = "class")
 confusionMatrix(as.factor(dance_pred),
@@ -219,9 +234,11 @@ pred_5 = as_factor(ifelse(dance_prob$top25 > 0.5, "top25", "bottom75"))
 print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5, y_true = as_factor(tune$danceability), positive = "top25")))
 ```
 
-### Tuning the Number of Cases
+### Tuning {.tabset} 
 
-```{r}
+#### Number of Cases
+
+```{r, include=FALSE}
 empty = data.frame(min_cases = character(),
                    F1 = numeric())
 min_cases = function(x){
@@ -246,16 +263,20 @@ min_cases = function(x){
 }
 cases = c(2,5,10,50,100,250,500,1000,2500)
 lapply(cases, min_cases)
-ggplot(empty, aes(x = reorder(as.factor(min_cases), -F1), y = F1))+ geom_col(width = .8)+ geom_bar(data=subset(empty, F1==max(F1)), aes(as.factor(min_cases), F1),
+```
+
+
+```{r}
+ggplot(empty, aes(x = reorder(as.factor(min_cases), -F1), y = F1))+ geom_col(width = .8)+ geom_bar(data=subset(empty, min_cases == 50), aes(as.factor(min_cases), F1),
               fill="green", stat="identity")
-ggplot(empty, aes(x = reorder(as.factor(min_cases), -specificity), y = specificity))+ geom_col(width = .8)+ geom_bar(data=subset(empty, specificity==max(specificity)), aes(as.factor(min_cases), specificity),
+ggplot(empty, aes(x = reorder(as.factor(min_cases), -specificity), y = specificity))+ geom_col(width = .8)+ geom_bar(data=subset(empty, min_cases == 50), aes(as.factor(min_cases), specificity),
               fill="green", stat="identity")
 #50 seems to be the best compromise
 ```
 
-### Tuning the Confidence Factor
+#### Confidence Factor
 
-```{r}
+```{r, include=FALSE}
 empty2 = data.frame(CF_level = character(),
                    F1 = numeric())
 CF_level = function(x){
@@ -281,10 +302,19 @@ CF_level = function(x){
 }
 cases = c(.1,.2,.3,.4,.5,.6,.7,.8,.9)
 lapply(cases, CF_level)
-ggplot(empty2, aes(x = reorder(as.factor(CF_level), -F1), y = F1))+ geom_col(width = .8)+ geom_bar(data=subset(empty2, F1==max(F1)), aes(as.factor(CF_level), F1),
+
+```
+
+``` {r}
+ggplot(empty2, aes(x = reorder(as.factor(CF_level), -F1), y = F1))+ geom_col(width = .8)+ geom_bar(data=subset(empty2, CF_level==.6), aes(as.factor(CF_level), F1),
               fill="green", stat="identity")
-ggplot(empty2, aes(x = reorder(as.factor(CF_level), -specificity), y = specificity))+ geom_col(width = .8)+ geom_bar(data=subset(empty2, specificity==max(specificity)), aes(as.factor(CF_level), specificity),
+ggplot(empty2, aes(x = reorder(as.factor(CF_level), -specificity), y = specificity))+ geom_col(width = .8)+ geom_bar(data=subset(empty2, CF_level==.6), aes(as.factor(CF_level), specificity),
               fill="green", stat="identity")
+```
+
+### Final Model Against Tune Data
+
+```{r}
 c5_model_tune = C5.0(danceability~.,
                     method = "class",
                     parms = list(split = "gini"),
