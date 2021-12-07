@@ -131,8 +131,8 @@ dance_mdl = train(x=features,
                 method="C5.0",
                 tuneGrid=grid_control,
                 trControl=cv_train)
-
-save(plot(dance_mdl),file = "boosts.png")
+winnow = plot(dance_mdl)
+save(winnow,file = "boosts.png")
 save.image(file = )
 
 #Results: 20 Boosting iterations with no winnowing

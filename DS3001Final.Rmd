@@ -73,17 +73,27 @@ names(music_genre)[names(music_genre)=="music_genre"] = "genre"
 # change mode and music_genre columns to factor
 music_genre$mode = as.factor(music_genre$mode) 
 music_genre$genre = as.factor(music_genre$genre)
+```
 
-print("Boxplot:")
+Tables of factor variables
 
+```{r}
+lapply(music_genre[c(5,8,12)], table)
+```
+
+Boxplot:
+
+```{r}
 # find the 75th percentile of danceable songs
 boxplot(music_genre$danceability)
 
 danceabilitySummary <- summary(music_genre$danceability)
 danceabilitySummary
+```
 
-print("The 75th percentile of danceability includes values of .687 and above")
+The 75th percentile of danceability includes values of .687 and above
 
+```{r}
 music_genre$danceability = (ifelse(music_genre$danceability > danceabilitySummary[5], 1, 0))
 music_genre$danceability = fct_collapse(as.factor(music_genre$danceability), "bottom75" = "0", "top25" = "1")
 
@@ -125,6 +135,15 @@ Music_25NN = knn(train = train1h,
                 use.all = TRUE,
                 prob = TRUE)
 confusionMatrix(as.factor(Music_25NN), as.factor(tune$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+
+#Establishing dataframe with both the prediction and probability
+Music_25NN_Prob = data.frame(pred = as_factor(Music_25NN), prob = attr(Music_25NN, "prob"))
+#Adjusting so probability aligns with probability of "top25" for all observations
+Music_25NN_Prob$prob = ifelse(Music_25NN_Prob$pred == "bottom75", 1 - Music_25NN_Prob$prob, Music_25NN_Prob$prob)
+#Finding F1 score at .5 threshold
+pred_5_25NN = as_factor(ifelse(Music_25NN_Prob$prob > 0.5, "top25", "bottom75"))
+print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_25NN, y_true = as_factor(tune$danceability), positive = "top25")))
+
 #Selecting the variables I predict would most closely correlate to danceability (popularity, energy, liveliness, loudness, and tempo)
 Music_25NN_tuned = knn(train = train[c(1,4,6,7,10)],
                 test = tune[c(1,4,6,7,10)],
@@ -147,6 +166,15 @@ Music_100NN = knn(train = train1h,
                 use.all = TRUE,
                 prob = TRUE)
 confusionMatrix(as.factor(Music_100NN), as.factor(tune$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
+
+#Establishing dataframe with both the prediction and probability
+Music_100NN_Prob = data.frame(pred = as_factor(Music_100NN), prob = attr(Music_100NN, "prob"))
+#Adjusting so probability aligns with probability of "top25" for all observations
+Music_100NN_Prob$prob = ifelse(Music_100NN_Prob$pred == "bottom75", 1 - Music_100NN_Prob$prob, Music_100NN_Prob$prob)
+#Finding F1 score at .5 threshold
+pred_5_100NN = as_factor(ifelse(Music_100NN_Prob$prob > 0.5, "top25", "bottom75"))
+print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_100NN, y_true = as_factor(tune$danceability), positive = "top25")))
+
 Music_100NN_tuned = knn(train = train[c(1,4,6,7,10)],
                 test = tune[c(1,4,6,7,10)],
                 cl = train$danceability,
@@ -167,6 +195,15 @@ Music_5NN = knn(train = train1h,
                 prob = TRUE)
 confusionMatrix(as.factor(Music_5NN), as.factor(tune$danceability), positive = "top25", dnn=c("Prediction", "Actual"), mode = "sens_spec")
 #Slightly increased sensitivity, but not enough and at the expense of accuracy
+
+#Establishing dataframe with both the prediction and probability
+Music_5NN_Prob = data.frame(pred = as_factor(Music_5NN), prob = attr(Music_5NN, "prob"))
+#Adjusting so probability aligns with probability of "top25" for all observations
+Music_5NN_Prob$prob = ifelse(Music_5NN_Prob$pred == "bottom75", 1 - Music_5NN_Prob$prob, Music_5NN_Prob$prob)
+#Finding F1 score at .5 threshold
+pred_5_5NN = as_factor(ifelse(Music_5NN_Prob$prob > 0.5, "top25", "bottom75"))
+print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_5NN, y_true = as_factor(tune$danceability), positive = "top25")))
+
 Music_5NN_tuned = knn(train = train[c(1,4,6,7,10)],
                 test = tune[c(1,4,6,7,10)],
                 cl = train$danceability,
@@ -218,7 +255,11 @@ c5_model = C5.0(danceability~.,
 varImp(c5_model)
 plot(c5_model)
 
-print("The first split is for genre; intuitively, this makes sense because of the booleans that follow. Rap and Hip hop will be most danceable when they are high energy/fast tempo while other genres may be more suited towards slow dancing that work best with low energy/slow tempo")
+```
+
+The first split is for genre; intuitively, this makes sense because of the booleans that follow. Rap and Hip hop will be most danceable when they are high energy/fast tempo while other genres may be more suited towards slow dancing that work best with low energy/slow tempo
+
+```{r}
 dance_prob = as_tibble(predict(c5_model, tune, type = "prob"))
 dance_pred = predict(c5_model, tune, type = "class")
 confusionMatrix(as.factor(dance_pred),
@@ -344,23 +385,32 @@ abline(a=0, b= 1)
 tree_perf_AUC = performance(pred,"auc")
 print(paste("AUC =",tree_perf_AUC@y.values))
 #.5 is near the elbow of the graph (maybe could try .4 and .6)
-print("Thresholding at .4")
+```
+
+Thresholding at .4
+```{r}
 dance_pred_4 = as_factor(ifelse(dance_prob$top25 > 0.4, "top25", "bottom75"))
 confusionMatrix(as.factor(dance_pred_4),
                 as.factor(tune$danceability),
                 dnn = c("Predicted", "Actual"),
                 mode = "sens_spec",
                 positive = "top25")
-print("Increases in sensitivity are not worth the decreases in specificity because it is our metric of interest.")
-print("Thresholding at .6")
+```
+
+The increases in sensitivity are not worth the decreases in specificity because it is our metric of interest.")
+
+Thresholding at .6
+
+```{r}
 dance_pred_6 = as_factor(ifelse(dance_prob$top25 > 0.6, "top25", "bottom75"))
 confusionMatrix(as.factor(dance_pred_6),
                 as.factor(tune$danceability),
                 dnn = c("Predicted", "Actual"),
                 mode = "sens_spec",
                 positive = "top25")
-print("The improvements in specificity are not worth the great losses in sensitivity.")
 ```
+
+The improvements in specificity are not worth the great losses in sensitivity.
 
 ## Random Forest {.tabset}
 
@@ -407,20 +457,30 @@ showModelOutput <- function(mdl, modelName) {
                        type = "response",
                        predict.all = FALSE,
                        proximity = FALSE)
-  
   confusionMatrix(as.factor(mdlPredict),
-                  as.factor(tune$danceability),
-                  dnn = c("Predicted", "Actual"),
-                  mode = "sens_spec",
-                  positive = "top25")
+                as.factor(tune$danceability),
+                dnn = c("Predicted", "Actual"),
+                mode = "sens_spec",
+                positive = "top25")
 }
+f1score = function(mdl){  
+  mdlPredictprob = as_tibble(predict(mdl,
+                    tune,
+                    type = "prob",
+                    predict.all = FALSE,
+                    proximity = FALSE))
+  
+  
+  pred_5_mdl = as_factor(ifelse(mdlPredictprob$top25 > 0.5, "top25", "bottom75"))
+  print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_mdl, y_true = as_factor(tune$danceability), positive = "top25")))
+  }
 
 # function to run the model with a given number of trees and randomly sampled variables
 tuneModel <- function(numTrees, mTry) {
   set.seed(3001)	
   rf = randomForest(danceability~.,      #<- Formula: response variable ~ predictors.
                     #   The period means 'use all other variables in the data'.
-                    tune,                #<- A data frame with the variables to be used.
+                    train,                #<- A data frame with the variables to be used.
                     #y = NULL,           #<- A response vector. This is unnecessary because we're specifying a response formula.
                     #subset = NULL,      #<- This is unnecessary because we're using all the rows in the training data set.
                     #xtest = NULL,       #<- This is already defined in the formula by the ".".
@@ -454,41 +514,49 @@ rf7 = tuneModel(1000, 4)
 ### Initial Model
 ```{r}
 showModelOutput(rfInit, 'Initial Model')
+f1score(rfInit)
 ```
 
 ### 250 Trees with 3 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf1, '250 Trees with 3 mtry')
+f1score(rf1)
 ```
 
 ### 750 Trees with 3 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf2, '750 Trees with 3 mtry')
+f1score(rf2)
 ```
 
 ### 1000 Trees with 3 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf3, '1000 Trees with 3 mtry')
+f1score(rf3)
 ```
 
 ### 250 Trees with 4 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf4, '250 Trees with 4 mtry')
+f1score(rf4)
 ```
 
 ### 500 Trees with 4 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf5, '500 Trees with 4 mtry')
+f1score(rf5)
 ```
 
 ### 750 Trees with 4 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf6, '750 Trees with 4 mtry')
+f1score(rf6)
 ```
 
 ### 1000 Trees with 4 Randomly Sampled Variables
 ```{r}
 showModelOutput(rf7, '1000 Trees with 4 mtry')
+f1score(rf7)
 ```
 
 # Testing our Final Models {.tabset}
@@ -537,10 +605,18 @@ rfPredict = predict(rf7,
                     type = "response",
                     predict.all = FALSE,
                     proximity = FALSE)
+rfPredictprob = as_tibble(predict(rf7,
+                    test,
+                    type = "prob",
+                    predict.all = FALSE,
+                    proximity = FALSE))
 
 confusionMatrix(as.factor(rfPredict),
                 as.factor(test$danceability),
                 dnn = c("Predicted", "Actual"),
                 mode = "sens_spec",
                 positive = "top25")
+
+pred_5_rf = as_factor(ifelse(rfPredictprob$top25 > 0.5, "top25", "bottom75"))
+print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_rf, y_true = as_factor(test$danceability), positive = "top25")))
 ```
