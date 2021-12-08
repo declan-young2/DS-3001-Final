@@ -270,7 +270,9 @@ plot(dance_mdl)
 ```
 
 Our initial model performed better than the KNN model, but we can still improve through tuning. We adjusted the hyperparameters of:
+
 1. The number of minimum cases in each leaf node
+
 2. The confidence factor (the threshold of error allowed in the data; the higher the number, the less pruning in the model.
 
 
@@ -676,7 +678,7 @@ Because this dataset observes songs, we do not have any protected classes and a 
 
 To improve our model, we could reduce the sample space of the negative class to make the dataset more balanced. This would leave us with a more clear metric of interest (specificity) and the model might improve its ability to predict both classes in tandem. 
 
-We believe other variables of interest could include **days since released** (the more recent the song, the more likely it will currently be considered "danceable") and **Billboard top 100** as a binary variable that indicates whether or not the song ever reached the top 100 of the charts. 
+We believe other variables of interest could include **Days Since Released** (the more recent the song, the more likely it will currently be considered "danceable") and **Billboard top 100** as a binary variable that indicates whether or not the song ever reached the top 100 of the charts. 
 
 In the future, it may be productive to try the model using regression methods instead of classification because the danceability variable begins as a continuous variable.
 
