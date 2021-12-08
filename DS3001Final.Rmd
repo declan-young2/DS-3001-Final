@@ -152,7 +152,7 @@ print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_25NN, y_true
 
 We assumed popularity, energy, liveliness, loudness, and tempo would best align with danceability, so we attempted to feature engineer the KNN model by only using these variables. However, this led to major decreases in both sensitivity and accuracy.
 
-```{r}
+```{r knnSelectVariables}
 #Selecting the variables I predict would most closely correlate to danceability (popularity, energy, liveliness, loudness, and tempo)
 Music_25NN_tuned = knn(train = train[c(1,4,6,7,10)],
                 test = tune[c(1,4,6,7,10)],
@@ -444,12 +444,16 @@ The improvements in specificity are not worth the great losses in sensitivity.
 
 ## Random Forest {.tabset}
 
+For our random forest model, we started with an initial model with 500 trees and 3 randomly sampled variables. We then created 7 more models with 250, 500, 750 and 1000 trees and 3 and 4 randomly sampled variables excluding the model with 500 trees and 3 randomly sampled variables as this is the same as the initial model. For each model, we looked at the variable importance as well as a graph of error rates against the number of trees. We also looked at several evaluation metrics including sensitivity and F-1 score. We determined the best of the 8 model variations we tried to be the one with 1000 trees and 4 randomly sampled variables. This had the highest sensitivity and F-1 score of the random forest models we created and also does well in predicting the negative class, similarly to the decision tree model.
+
 ```{r randomForest, results=FALSE}
 # function to calculate the mtry level 
 mytry_tune <- function(x){
   xx <- dim(x)[2]-1
   sqrt(xx)
 }
+mytry_tune(music_genre)
+
 set.seed(3001)
 rfInit = randomForest(danceability~.,      #<- Formula: response variable ~ predictors.
                       #   The period means 'use all other variables in the data'.
@@ -458,17 +462,17 @@ rfInit = randomForest(danceability~.,      #<- Formula: response variable ~ pred
                       #subset = NULL,      #<- This is unnecessary because we're using all the rows in the training data set.
                       #xtest = NULL,       #<- This is already defined in the formula by the ".".
                       #ytest = NULL,       #<- This is already defined in the formula by "PREGNANT".
-                      ntree = 500,        #<- Number of trees to grow. This should not be set to too small a number, to ensure that every input row gets classified at least a few times.
-                      mtry = mytry_tune(music_genre), #<- Number of variables randomly sampled as candidates at each split. Default number for classification is sqrt(# of variables). Default number for regression is (# of variables / 3).
+                      ntree = 500,         #<- Number of trees to grow. This should not be set to too small a number, to ensure that every input row gets classified at least a few times.
+                      mtry = 3,            #<- Number of variables randomly sampled as candidates at each split. Default number for classification is sqrt(# of variables). Default number for regression is (# of variables / 3).
                       replace = TRUE,      #<- Should sampled data points be replaced.
                       #classwt = NULL,     #<- Priors of the classes. Use this if you want to specify what proportion of the data SHOULD be in each class. This is relevant if your sample data is not completely representative of the actual population 
                       #strata = NULL,      #<- Not necessary for our purpose here.
-                      sampsize = 3000,      #<- Size of sample to draw each time.
+                      sampsize = 3000,     #<- Size of sample to draw each time.
                       nodesize = 5,        #<- Minimum numbers of data points in terminal nodes.
                       #maxnodes = NULL,    #<- Limits the number of maximum splits. 
                       importance = TRUE,   #<- Should importance of predictors be assessed?
                       #localImp = FALSE,   #<- Should casewise importance measure be computed? (Setting this to TRUE will override importance.)
-                      proximity = FALSE,    #<- Should a proximity measure between rows be calculated?
+                      proximity = FALSE,   #<- Should a proximity measure between rows be calculated?
                       norm.votes = TRUE,   #<- If TRUE (default), the final result of votes are expressed as fractions. If FALSE, raw vote counts are returned (useful for combining results from different runs).
                       do.trace = TRUE,     #<- If set to TRUE, give a more verbose output as randomForest is run.
                       keep.forest = TRUE,  #<- If set to FALSE, the forest will not be retained in the output object. If xtest is given, defaults to FALSE.
@@ -512,22 +516,22 @@ tuneModel <- function(numTrees, mTry) {
   set.seed(3001)	
   rf = randomForest(danceability~.,      #<- Formula: response variable ~ predictors.
                     #   The period means 'use all other variables in the data'.
-                    train,                #<- A data frame with the variables to be used.
+                    train,               #<- A data frame with the variables to be used.
                     #y = NULL,           #<- A response vector. This is unnecessary because we're specifying a response formula.
                     #subset = NULL,      #<- This is unnecessary because we're using all the rows in the training data set.
                     #xtest = NULL,       #<- This is already defined in the formula by the ".".
                     #ytest = NULL,       #<- This is already defined in the formula by "PREGNANT".
-                    ntree = numTrees,        #<- Number of trees to grow. This should not be set to too small a number, to ensure that every input row gets classified at least a few times.
-                    mtry = mTry,            #<- Number of variables randomly sampled as candidates at each split. Default number for classification is sqrt(# of variables). Default number for regression is (# of variables / 3).
+                    ntree = numTrees,    #<- Number of trees to grow. This should not be set to too small a number, to ensure that every input row gets classified at least a few times.
+                    mtry = mTry,         #<- Number of variables randomly sampled as candidates at each split. Default number for classification is sqrt(# of variables). Default number for regression is (# of variables / 3).
                     replace = TRUE,      #<- Should sampled data points be replaced.
                     #classwt = NULL,     #<- Priors of the classes. Use this if you want to specify what proportion of the data SHOULD be in each class. This is relevant if your sample data is not completely representative of the actual population 
                     #strata = NULL,      #<- Not necessary for our purpose here.
-                    sampsize = 3000,      #<- Size of sample to draw each time.
+                    sampsize = 3000,     #<- Size of sample to draw each time.
                     nodesize = 5,        #<- Minimum numbers of data points in terminal nodes.
                     #maxnodes = NULL,    #<- Limits the number of maximum splits. 
                     importance = TRUE,   #<- Should importance of predictors be assessed?
                     #localImp = FALSE,   #<- Should casewise importance measure be computed? (Setting this to TRUE will override importance.)
-                    proximity = FALSE,    #<- Should a proximity measure between rows be calculated?
+                    proximity = FALSE,   #<- Should a proximity measure between rows be calculated?
                     norm.votes = TRUE,   #<- If TRUE (default), the final result of votes are expressed as fractions. If FALSE, raw vote counts are returned (useful for combining results from different runs).
                     do.trace = TRUE,     #<- If set to TRUE, give a more verbose output as randomForest is run.
                     keep.forest = TRUE,  #<- If set to FALSE, the forest will not be retained in the output object. If xtest is given, defaults to FALSE.
