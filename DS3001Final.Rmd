@@ -17,11 +17,18 @@ knitr::opts_chunk$set(echo = TRUE, cache = TRUE, warning = FALSE, message = FALS
 
 # Introduction
 
-The Charlottesville bars are looking for ways to increase their attendance next semester and are looking for different ways to do it. One area they have selected is the playlist of songs for their bar. If they are able to find songs that people will be more likely to dance to, this might increase their attendance and popularity. In this project we will be looking into a data set of songs and creating machine learning models to try and predict a danceability rating for them. We will be using three different model types: k-nearest neighbors, (KNN), decision tree and random forest. For each model, we created an initial model and then tried to tune it to be able to best predict our data. We will be looking to predict whether a particular song will be in the top 25% percentile in terms of its danceability rating and will therefore be a song with optimal qualities to place on a playlist for nights at bars. Two metrics that we will be focusing on in this project are specificity as well as the F1 score. Specificity is important for this situation because songs that are classified as being in the top 25% percentile when they should not be could be detrimental to the atmosphere of a bar and could turn away bar-goers. F1 score will also be important in evaluating our models as the data is imbalanced.
+The Charlottesville bars are looking for ways to increase their attendance next semester and are looking for different ways to do it. One area they have selected is the playlist of songs for their bar. If they are able to find songs that people will be more likely to dance to, this might increase their attendance and popularity. In this project, we will be looking into a data set of songs and creating machine learning models to try and predict a danceability rating for them. 
+
+We will be using three different model types: k-nearest neighbors, (KNN), decision tree and random forest. For each model, we created an initial model and then tried to tune it to be able to best predict our data. We will be looking to predict whether a particular song will be in the top 25% percentile in terms of its danceability rating and will therefore be a song with optimal qualities to place on a playlist for nights at bars.
+
+Two metrics that we will be focusing on in this project are specificity as well as the F1 score. Specificity is important for this situation because songs that are classified as being in the top 25% percentile when they should not be could be detrimental to the atmosphere of a bar and could turn away bar-goers. F1 score will also be important in evaluating our models as the data is imbalanced.
 
 # Data Analysis
 
-We obtained the dataset we are using from [Kaggle](https://www.kaggle.com/vicsuperman/prediction-of-music-genre). It contains songs from the major genres with various metrics about them including acousticness, energy, key, loudness, tempo, genre and several other metrics. Our models will use these various metrics to try and predict whether a song will be in the top 25% percentile in danceability rating. To clean our dataset to prepare to feed it into the models, we first removed variables that we decided not to use either because they were identifying values such as song name and artist or because they had erroneous data in them. For example, about half of the values in the column for the song's duration reported a duration of -1 milliseconds. We then removed NA values and converted the tempo column to numeric values. We also normalized the popularity, loudness and tempo columns to be between 0 and 1 using a simple min-max scaler. Next, we collapsed the factors of the key column to combine sharp and natural notes of the same type as well as classified the genre and mode columns as factors. We calculated the 75th percentile of the danceability scores and created a binary variable indicating whether a song was in the top 25% or not, replacing the original column with danceability scores.
+We obtained the dataset we are using from [Kaggle](https://www.kaggle.com/vicsuperman/prediction-of-music-genre). It contains songs from the major genres with various metrics about them including acousticness, energy, key, loudness, tempo, genre and several other metrics. Our models will use these various metrics to try and predict whether a song will be in the top 25% percentile in danceability rating. 
+
+To clean our dataset to prepare to feed it into the models, we first removed variables that we decided not to use either because they were identifying values such as song name and artist or because they had erroneous data in them. For example, about half of the values in the column for the song's duration reported a duration of -1 milliseconds. We then removed NA values and converted the tempo column to numeric values. We also normalized the popularity, loudness and tempo columns to be between 0 and 1 using a simple min-max scaler. Next, we collapsed the factors of the key column to combine sharp and natural notes of the same type as well as classified the genre and mode columns as factors. We calculated the 75th percentile of the danceability scores and created a binary variable indicating whether a song was in the top 25% or not, replacing the original column with danceability scores.
+
 Finally, we split our dataset into train, tune and test partitions for use with our models. Below are some summary statistics about important variables in our data as well as a table showing our final cleaned data.
 
 ```{r dataCleaning}
@@ -80,6 +87,7 @@ music_genre$genre = as.factor(music_genre$genre)
 
 lapply(music_genre[c(5,8,12)], table)
 ```
+
 Each of the factor variables are well balanced within the dataset.
 
 Boxplot of Danceability:
@@ -444,7 +452,7 @@ The improvements in specificity are not worth the great losses in sensitivity.
 
 ## Random Forest {.tabset}
 
-For our random forest model, we started with an initial model with 500 trees and 3 randomly sampled variables. We then created 7 more models with 250, 500, 750 and 1000 trees and 3 and 4 randomly sampled variables excluding the model with 500 trees and 3 randomly sampled variables as this is the same as the initial model. For each model, we looked at the variable importance as well as a graph of error rates against the number of trees. We also looked at several evaluation metrics including sensitivity and F-1 score. We determined the best of the 8 model variations we tried to be the one with 1000 trees and 4 randomly sampled variables. This had the highest sensitivity and F-1 score of the random forest models we created and also does well in predicting the negative class, similarly to the decision tree model.
+For our random forest model, we started with an initial model with 500 trees and 3 randomly sampled variables. We then created 7 more models with 250, 500, 750 and 1000 trees and 3 and 4 randomly sampled variables excluding the model with 500 trees and 3 randomly sampled variables as this is the same as the initial model. For each model, we looked at the variable importance as well as a graph of error rates against the number of trees. We also looked at several evaluation metrics including specificity and F-1 score. We determined the best of the 8 model variations we tried to be the one with 1000 trees and 4 randomly sampled variables. This had the highest specificity and F-1 score of the random forest models we created and also does well in predicting the negative class, similarly to the decision tree model.
 
 ```{r randomForest, results=FALSE}
 # function to calculate the mtry level 
@@ -658,6 +666,18 @@ print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5_rf, y_true =
 
 # Overall Findings
 
+Moving forward, we would endorse this model, especially if the bars are particularly interested in filtering out "non-danceable" songs. Bars should firstly keep in mind the genre of songs that resonates with their patrons and pass that genre of songs through the machine learning algorithm. The models predict differently based on the genre because a "danceble" classical song greatly differs from a "danceable" Hip Hop song.
+
+We recommend the bars use our single tree model if they value correctly predicting "dancy" songs and the random forest if they want to ensure they do not play a buzzkill because they are more conservative. Additionally, if the preferences of customers change often and the danceability score shifts as time goes on, the bars may want to use the KNN model because it re-trains each time it is run and is not computationally expensive. 
+
+Because this dataset observes songs, we do not have any protected classes and a fairness assessment is necessarily not warranted.
+
 # Next Steps
 
-Moving forward, I would recommend the bars use our single tree model if they value correctly predicting "dancy" songs and the random forest if they want to ensure they do not play a buzzkill because they are more conservative. In the future, it may be productive to try the model using regression methods instead of classification because the danceability variable begins as a continuous variable.
+To improve our model, we could reduce the sample space of the negative class to make the dataset more balanced. This would leave us with a more clear metric of interest (specificity) and the model might improve its ability to predict both classes in tandem. 
+
+We believe other variables of interest could include **days since released** (the more recent the song, the more likely it will currently be considered "danceable") and **Billboard top 100** as a binary variable that indicates whether or not the song ever reached the top 100 of the charts. 
+
+In the future, it may be productive to try the model using regression methods instead of classification because the danceability variable begins as a continuous variable.
+
+With all of that being said, the biggest limitation of this model exists in the data itself. We do not know how "danceability" is determined, and the interpretation of that variable is subjective rather than objective. Therefore, the bars should continue to evaluate whether or not the number of their guests do increase and more people dance at their bar. Secondly, if the model does succeed, the bars should monitor whether sales on drinks also increase. Despite the increase in traffic, the number of drinks purchased could decrease if guests choose to continue dancing instead of taking a break to buy a drink. In that case, the business question should be adapted to answer a question more correlated with alcohol sales.
