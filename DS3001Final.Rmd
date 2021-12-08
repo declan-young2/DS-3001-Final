@@ -269,12 +269,7 @@ plot(dance_mdl)
 #Remaking the model for visualization purposes
 ```
 
-Our initial model performed better than the KNN model, but we can still improve through tuning. We adjusted the hyperparameters of:
-
-1. The number of minimum cases in each leaf node
-
-2. The confidence factor (the threshold of error allowed in the data; the higher the number, the less pruning in the model.
-
+Variable Importance
 
 ```{r decisionTree2, fig.height=5, fig.width=10}
 
@@ -308,6 +303,12 @@ confusionMatrix(as.factor(dance_pred),
 pred_5 = as_factor(ifelse(dance_prob$top25 > 0.5, "top25", "bottom75"))
 print(paste("F-1 Score at a .5 threshold:",F1_Score(y_pred = pred_5, y_true = as_factor(tune$danceability), positive = "top25")))
 ```
+
+Our initial model performed better than the KNN model, but we can still improve through tuning. We adjusted the hyperparameters of:
+
+1. The number of minimum cases in each leaf node
+
+2. The confidence factor (the threshold of error allowed in the data; the higher the number, the less pruning in the model.
 
 ### Tuning {.tabset} 
 
