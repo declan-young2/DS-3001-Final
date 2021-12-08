@@ -124,6 +124,7 @@ test = tune_and_test[-tune_and_test_index,]
 ### 25 Neighbors
 
 ```{r}
+set.seed(3001)
 KNN_train = train[-c(3,5,12)]
 train1h = one_hot(as.data.table(KNN_train),cols = "auto",sparsifyNAs = TRUE,naCols = TRUE,dropCols = TRUE,dropUnusedLevels = TRUE)
 KNN_tune = tune[-c(3,5,12)]
@@ -243,6 +244,7 @@ plot(dance_mdl)
 ```
 
 ```{r, fig.height=5, fig.width=10}
+set.seed(3001)
 
 c5_model = C5.0(danceability~.,
                     method = "class",
@@ -347,9 +349,9 @@ lapply(cases, CF_level)
 ```
 
 ``` {r}
-ggplot(empty2, aes(x = reorder(as.factor(CF_level), -F1), y = F1))+ geom_col(width = .8)+ geom_bar(data=subset(empty2, CF_level==.6), aes(as.factor(CF_level), F1),
+ggplot(empty2, aes(x = reorder(as.factor(CF_level), -F1), y = F1))+ geom_col(width = .8)+ geom_bar(data=subset(empty2, CF_level==.9), aes(as.factor(CF_level), F1),
               fill="green", stat="identity")
-ggplot(empty2, aes(x = reorder(as.factor(CF_level), -specificity), y = specificity))+ geom_col(width = .8)+ geom_bar(data=subset(empty2, CF_level==.6), aes(as.factor(CF_level), specificity),
+ggplot(empty2, aes(x = reorder(as.factor(CF_level), -specificity), y = specificity))+ geom_col(width = .8)+ geom_bar(data=subset(empty2, CF_level==.9), aes(as.factor(CF_level), specificity),
               fill="green", stat="identity")
 ```
 
@@ -363,7 +365,7 @@ c5_model_tune = C5.0(danceability~.,
                     trials = 20,
                     control = C5.0Control(winnow = FALSE,
                                           minCases = 50,
-                                          CF = .6))
+                                          CF = .9))
 dance_prob_tune = as_tibble(predict(c5_model_tune, tune, type = "prob"))
 dance_pred_tune = predict(c5_model_tune, tune, type = "class")
 confusionMatrix(as.factor(dance_pred_tune),
